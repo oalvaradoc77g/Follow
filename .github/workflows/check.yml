@@ -3,11 +3,15 @@ name: Consultar estado de cédula
 on:
   schedule:
     # Corre todos los días a las 8:00am hora Colombia (13:00 UTC)
-    - cron: "30 13 * * *"
+    - cron: "0 13 * * *"
   workflow_dispatch: {}   # permite ejecutarlo manualmente también, para probar
 
 permissions:
   contents: write
+
+concurrency:
+  group: seguimiento-defuncion
+  cancel-in-progress: false   # si ya hay una corriendo, espera en vez de solaparse
 
 jobs:
   check:
@@ -25,6 +29,7 @@ jobs:
         run: pip install requests
 
       - name: Ejecutar consulta
+        id: consulta
         env:
           NUIP: ${{ secrets.NUIP }}
           IP_REPORTADA: ${{ secrets.IP_REPORTADA }}
@@ -35,8 +40,11 @@ jobs:
           EMAIL_DESTINO: ${{ secrets.EMAIL_DESTINO }}
           ALERTA_FALLA_CADA_N: "3"
         run: python check_estado.py
+        # No ponemos continue-on-error: sí queremos que el job quede en rojo
+        # si el script falla (código 1) — es la señal visual de que algo pasó.
 
       - name: Guardar estado.json actualizado en el repo
+        if: always()   # corre incluso si el paso anterior falló, para no perder el registro
         run: |
           git config user.name "github-actions"
           git config user.email "actions@github.com"
